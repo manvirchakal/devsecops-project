@@ -1,0 +1,31 @@
+version: '3'
+services:
+  juice-shop:
+    image: bkimminich/juice-shop
+    container_name: juice-shop
+    networks:
+      - my-network
+    ports:
+      - "3000:3000"
+
+  webgoat:
+    image: webgoat/webgoat-8.0
+    container_name: webgoat
+    networks:
+      - my-network
+    ports:
+      - "8080:8080"
+
+  nessus:
+    image: tenable/nessus:latest-ubuntu
+    container_name: nessus
+    networks:
+      - my-network
+    ports:
+      - "8834:8834"
+
+networks:
+  my-network:
+    name: my-network
+    driver: bridge
+
