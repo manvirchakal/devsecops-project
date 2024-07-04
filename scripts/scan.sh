@@ -1,28 +1,77 @@
 #!/bin/bash
 
-# Replace these with your actual Nessus credentials and scan ID
+# Nessus API credentials and URL
 NESSUS_URL="https://10.0.2.15:8834"
-NESSUS_USERNAME="amnvirchakal"
-NESSUS_PASSWORD="M@nvir123"
-SCAN_ID="your_scan_id"
+USERNAME="manvirchakal"
+PASSWORD="M@nvir123"
+SCAN_ID="6"  # Replace with your actual scan ID
 
-# Login to Nessus and get a session token
-TOKEN=$(curl -k -X POST -H "Content-Type: application/json" -d '{"username":"'"$NESSUS_USERNAME"'","password":"'"$NESSUS_PASSWORD"'"}' "$NESSUS_URL/session" | jq -r .token)
+# Function to obtain API token
+get_api_token() {
+  curl -k -X POST -H "Content-Type: application/json" -d "{\"username\":\"$USERNAME\", \"password\":\"$PASSWORD\"}" "$NESSUS_URL/session" | jq -r .token
+}
+
+# Function to check if a scan is running
+is_scan_running() {
+  scan_id=$1
+  status=$(curl -k -X GET -H "X-Cookie: token=$TOKEN" -H "Content-Type: application/json" "$NESSUS_URL/scans/$scan_id" | jq -r .info.status)
+  if [[ "$status" == "running" ]]; then
+    return 0
+  else
+    return 1
+  fi
+}
+
+# Function to wait for the scan to complete
+wait_for_scan_to_complete() {
+  scan_id=$1
+  while is_scan_running $scan_id; do
+    echo "Scan $scan_id is still running..."
+    sleep 60
+  done
+  echo "Scan $scan_id is complete."
+}
+
+# Get API token
+TOKEN=$(get_api_token)
+
+if [ -z "$TOKEN" ]; then
+  echo "Failed to obtain API token."
+  exit 1
+fi
 
 # Start the scan
+echo "Starting Nessus scan with ID $SCAN_ID..."
 curl -k -X POST -H "X-Cookie: token=$TOKEN" -H "Content-Type: application/json" "$NESSUS_URL/scans/$SCAN_ID/launch"
 
-# Wait for the scan to complete (this is a simplistic approach; you might want to implement a loop to check the scan status)
-echo "Waiting for the scan to complete..."
-sleep 600
+# Wait for the scan to complete
+wait_for_scan_to_complete $SCAN_ID
 
-# Export the scan results
-SCAN_EXPORT_ID=$(curl -k -X POST -H "X-Cookie: token=$TOKEN" -H "Content-Type: application/json" -d '{"format":"pdf"}' "$NESSUS_URL/scans/$SCAN_ID/export" | jq -r .file)
-sleep 10
-curl -k -X GET -H "X-Cookie: token=$TOKEN" "$NESSUS_URL/scans/$SCAN_ID/export/$SCAN_EXPORT_ID/download" --output report.pdf
+# Export the scan report
+REPORT_PATH="/tmp/scan_report.nessus"
+REPORT_ID=$(curl -k -X POST -H "X-Cookie: token=$TOKEN" -H "Content-Type: application/json" -d "{\"format\":\"nessus\"}" "$NESSUS_URL/scans/$SCAN_ID/export" | jq -r .file)
+echo "Exporting the scan report to $REPORT_PATH..."
 
-# Cleanup: logout from Nessus
+# Wait for the export to be ready
+while true; do
+  EXPORT_STATUS=$(curl -k -X GET -H "X-Cookie: token=$TOKEN" -H "Content-Type: application/json" "$NESSUS_URL/scans/$SCAN_ID/export/$REPORT_ID/status" | jq -r .status)
+  if [ "$EXPORT_STATUS" == "ready" ]; then
+    echo "Report is ready for download."
+    break
+  else
+    echo "Report is being generated..."
+    sleep 30
+  fi
+done
+
+# Download the report
+curl -k -X GET -H "X-Cookie: token=$TOKEN" -H "Content-Type: application/json" "$NESSUS_URL/scans/$SCAN_ID/export/$REPORT_ID/download" -o $REPORT_PATH
+echo "Scan report saved to $REPORT_PATH"
+
+# Copy the report from the container to the host
+docker cp nessus:$REPORT_PATH ./scan_report.nessus
+echo "Scan report saved to ./scan_report.nessus"
+
+# Clean up the session
 curl -k -X DELETE -H "X-Cookie: token=$TOKEN" "$NESSUS_URL/session"
-
-echo "Scan complete. Report saved as report.pdf"
 
