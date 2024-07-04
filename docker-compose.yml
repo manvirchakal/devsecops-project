@@ -1,12 +1,12 @@
 version: '3'
 services:
-  juice-shop:
-    image: bkimminich/juice-shop
-    container_name: juice-shop
+  dvwa:
+    image: vulnerables/web-dvwa
+    container_name: dvwa
     networks:
       - my-network
     ports:
-      - "3000:3000"
+      - "80:80"
 
   webgoat:
     image: webgoat/webgoat-8.0

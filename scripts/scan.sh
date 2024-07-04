@@ -1,9 +1,9 @@
 #!/bin/bash
 
 # Replace these with your actual Nessus credentials and scan ID
-NESSUS_URL="https://<your-vm-ip>:8834"
-NESSUS_USERNAME="your_nessus_username"
-NESSUS_PASSWORD="your_nessus_password"
+NESSUS_URL="https://10.0.2.15:8834"
+NESSUS_USERNAME="amnvirchakal"
+NESSUS_PASSWORD="M@nvir123"
 SCAN_ID="your_scan_id"
 
 # Login to Nessus and get a session token
